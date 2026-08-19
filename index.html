@@ -1,166 +1,270 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pixel War</title>
-    <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body {
-            background-color: #0f172a;
-            color: #f8fafc;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            min-height: 100vh;
-        }
-        .card {
-            background-color: #1e293b;
-            padding: 30px;
-            border-radius: 12px;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
-            text-align: center;
-        }
-        input, button {
-            padding: 12px;
-            margin: 8px 0;
-            width: 100%;
-            border-radius: 6px;
-            border: 1px solid #334155;
-            background-color: #0f172a;
-            color: white;
-            font-size: 16px;
-        }
-        button {
-            background-color: #38bdf8;
-            color: #0f172a;
-            font-weight: bold;
-            cursor: pointer;
-        }
-        button:hover { background-color: #0ea5e9; }
-        
-        #game-screen {
-            display: none;
-            flex-direction: column;
-            align-items: center;
-        }
-        
-        #grid-container {
-            display: grid;
-            grid-template-columns: repeat(20, 20px);
-            grid-template-rows: repeat(20, 20px);
-            gap: 1px;
-            background-color: #334155;
-            padding: 2px;
-            border-radius: 4px;
-            margin-top: 15px;
-        }
-        .pixel {
-            width: 20px;
-            height: 20px;
-            cursor: pointer;
-        }
-        .palette {
-            display: flex;
-            gap: 10px;
-            margin-top: 15px;
-            justify-content: center;
-        }
-        .color-btn {
-            width: 30px;
-            height: 30px;
-            border-radius: 50%;
-            border: 2px solid white;
-            cursor: pointer;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>World Pixel War</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-tap-highlight-color: transparent; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f1117; color: white; height: 100vh; width: 100vw; overflow: hidden; position: fixed; }
+    #map { width: 100%; height: 100%; z-index: 1; }
+
+    .auth-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 2000; display: flex; align-items: center; justify-content: center; padding: 20px; }
+    .auth-card { background: #161b26; border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 20px; width: 100%; max-width: 420px; display: flex; flex-direction: column; gap: 10px; max-height: 90vh; overflow-y: auto; }
+    .auth-card h2 { text-align: center; font-size: 1.3rem; }
+    .auth-card input { background: #0f1117; border: 1px solid rgba(255,255,255,0.2); padding: 12px; border-radius: 8px; color: white; outline: none; font-size: 1rem; }
+    .auth-card button { background: #6366f1; border: none; padding: 12px; border-radius: 8px; color: white; font-weight: bold; font-size: 1rem; cursor: pointer; }
+    .auth-card .switch { text-align: center; font-size: 0.85rem; color: #8b949e; cursor: pointer; padding: 4px; }
+
+    .shop-item { background: rgba(255,255,255,0.05); padding: 10px 14px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); display: flex; justify-content: space-between; align-items: center; }
+
+    .leaderboard { position: absolute; top: 16px; left: 16px; z-index: 1000; background: rgba(15, 17, 23, 0.92); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; width: 260px; max-height: 220px; overflow-y: auto; padding: 12px; backdrop-filter: blur(8px); }
+    .player-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; font-size: 0.85rem; border-bottom: 1px solid rgba(255,255,255,0.05); }
+    
+    .vip-user { color: #ffd700 !important; font-weight: bold; text-shadow: 0 0 5px rgba(255,215,0,0.5); }
+    .vip-badge { background: linear-gradient(45deg, #ffd700, #ffa500); color: black; font-size: 0.65rem; font-weight: 900; padding: 2px 4px; border-radius: 4px; margin-left: 4px; }
+    
+    .founder-user { color: #ff0055 !important; font-weight: 900; text-shadow: 0 0 8px #ff0055, 0 0 12px #ff0055; }
+    .founder-badge { background: #ff0055; color: white; font-size: 0.65rem; font-weight: 900; padding: 2px 4px; border-radius: 4px; margin-left: 4px; box-shadow: 0 0 6px #ff0055; }
+
+    .neon-user { color: #00ffff !important; text-shadow: 0 0 8px #00ffff; font-weight: bold; }
+
+    .btn-ban { background: #ff4444; color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: bold; cursor: pointer; margin-left: 6px; }
+
+    .controls { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 1000; background: rgba(15, 17, 23, 0.92); padding: 8px 16px; border-radius: 50px; display: flex; align-items: center; gap: 12px; border: 1px solid rgba(255,255,255,0.15); backdrop-filter: blur(8px); box-shadow: 0 4px 20px rgba(0,0,0,0.5); width: auto; max-width: calc(100% - 32px); }
+    .color-picker-wrapper { position: relative; width: 38px; height: 38px; border-radius: 50%; overflow: hidden; border: 2px solid #ffffff; cursor: pointer; flex-shrink: 0; }
+    .color-picker-wrapper input[type="color"] { position: absolute; top: -10px; left: -10px; width: 60px; height: 60px; border: none; cursor: pointer; background: none; }
+    
+    .shop-btn { background: linear-gradient(45deg, #ffd700, #ffa500); color: #000; border: none; padding: 8px 16px; border-radius: 20px; font-weight: bold; font-size: 0.85rem; cursor: pointer; white-space: nowrap; }
+    
+    .discord-btn { background: #5865F2; color: white; border: none; padding: 8px 12px; border-radius: 20px; font-weight: bold; font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; justify-content: center; text-decoration: none; }
+    .discord-btn svg { width: 20px; height: 20px; fill: white; }
+
+    .stock { font-weight: bold; font-size: 0.85rem; background: rgba(255,255,255,0.08); padding: 6px 12px; border-radius: 20px; white-space: nowrap; }
+  </style>
 </head>
 <body>
 
-    <!-- ÉCRAN DE CONNEXION -->
-    <div class="card" id="login-screen">
-        <h1>Pixel War ⚔️</h1>
-        <input type="text" id="username" placeholder="Ton pseudo..." autocomplete="off">
-        <button id="login-btn">Entrer dans la guerre</button>
+  <div class="auth-overlay" id="authModal">
+    <div class="auth-card">
+      <h2 id="modalTitle">Connexion</h2>
+      <input type="text" id="usernameInput" placeholder="Pseudo" autocomplete="off" autocapitalize="none">
+      <input type="password" id="passwordInput" placeholder="Mot de passe">
+      <button id="authBtn" onclick="submitAuth()">Se connecter</button>
+      <div class="switch" onclick="toggleAuthMode()" id="switchText">Pas de compte ? S'inscrire</div>
     </div>
+  </div>
 
-    <!-- ÉCRAN DE JEU (Grille) -->
-    <div id="game-screen">
-        <h1>Pixel War - Joueur : <span id="display-pseudo"></span></h1>
-        
-        <div id="grid-container"></div>
-
-        <div class="palette">
-            <div class="color-btn" style="background-color: #EF4444;" onclick="setColor('#EF4444')"></div>
-            <div class="color-btn" style="background-color: #3B82F6;" onclick="setColor('#3B82F6')"></div>
-            <div class="color-btn" style="background-color: #10B981;" onclick="setColor('#10B981')"></div>
-            <div class="color-btn" style="background-color: #FBBF24;" onclick="setColor('#FBBF24')"></div>
-            <div class="color-btn" style="background-color: #FFFFFF;" onclick="setColor('#FFFFFF')"></div>
-            <div class="color-btn" style="background-color: #000000;" onclick="setColor('#000000')"></div>
+  <div class="auth-overlay" id="shopModal" style="display: none;">
+    <div class="auth-card">
+      <h2 style="color: #ffd700;">🛒 Boutique</h2>
+      
+      <div class="shop-item">
+        <div>
+          <b style="color: #ffd700;">Pass VIP</b>
+          <p style="font-size:0.75rem; color:#aaa;">Pixels illimités + Badge VIP</p>
         </div>
+        <button onclick="payItem('vip', '4.99')" style="background: #ffd700; color: #000; padding: 6px 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">4,99 €</button>
+      </div>
+
+      <div class="shop-item">
+        <div>
+          <b style="color: #00ffff;">+50 Pixels</b>
+          <p style="font-size:0.75rem; color:#aaa;">Recharge instantanée</p>
+        </div>
+        <button onclick="payItem('pixels50', '0.99')" style="background: #00ffff; color: #000; padding: 6px 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">0,99 €</button>
+      </div>
+
+      <div class="shop-item">
+        <div>
+          <b style="color: #ff00ff;">Pseudo Néon</b>
+          <p style="font-size:0.75rem; color:#aaa;">Couleur brillance néon</p>
+        </div>
+        <button onclick="payItem('neon', '1.99')" style="background: #ff00ff; color: #fff; padding: 6px 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">1,99 €</button>
+      </div>
+
+      <div class="shop-item">
+        <div>
+          <b style="color: #ff9900;">Pinceau 2x2</b>
+          <p style="font-size:0.75rem; color:#aaa;">Pose 4 pixels d'un seul clic</p>
+        </div>
+        <button onclick="payItem('brush', '2.99')" style="background: #ff9900; color: #000; padding: 6px 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">2,99 €</button>
+      </div>
+
+      <div class="shop-item">
+        <div>
+          <b style="color: #00ff66;">Bouclier Zone</b>
+          <p style="font-size:0.75rem; color:#aaa;">Protège tes pixels 24h</p>
+        </div>
+        <button onclick="payItem('shield', '1.49')" style="background: #00ff66; color: #000; padding: 6px 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">1,49 €</button>
+      </div>
+
+      <div id="paypal-button-container" style="margin-top: 10px;"></div>
+      <button onclick="closeShop()" style="background: #333; margin-top: 10px;">Fermer</button>
     </div>
+  </div>
 
-    <script src="/socket.io/socket.io.js"></script>
-    <script>
-        const socket = io();
-        let selectedColor = '#EF4444'; // Rouge par défaut
+  <div class="leaderboard">
+    <div style="font-weight:bold; margin-bottom:6px; font-size:0.75rem; text-transform:uppercase; color:#8b949e;">Joueurs en ligne</div>
+    <div id="playerList"></div>
+  </div>
 
-        function setColor(color) {
-            selectedColor = color;
+  <div id="map"></div>
+
+  <div class="controls">
+    <div class="color-picker-wrapper" id="colorWrapper" style="background-color: #ff0000;">
+      <input type="color" id="colorPicker" value="#ff0000">
+    </div>
+    <div class="stock"><span id="stockDisplay">0</span></div>
+    <button class="shop-btn" onclick="openShop()">🛒 VIP</button>
+    <a href="https://discord.gg/DbHsGBckyc" target="_blank" class="discord-btn">
+      <svg viewBox="0 0 127.14 96.36">
+        <path d="M107.7,8.07A105.15,105.15,0,0,0,81.47,0a72.06,72.06,0,0,0-3.36,6.83A97.68,97.68,0,0,0,49,6.83,72.37,72.37,0,0,0,45.64,0,105.89,105.89,0,0,0,19.39,8.09C2.79,32.65-1.71,56.6.54,80.21h0A105.73,105.73,0,0,0,32.71,96.36,77.7,77.7,0,0,0,39.6,85.25a68.42,68.42,0,0,1-10.85-5.18c.91-.66,1.8-1.34,2.66-2a73.57,73.57,0,0,0,64.32,0c.87.68,1.76,1.36,2.66,2a68.68,68.68,0,0,1-10.87,5.19,77,77,0,0,0,6.89,11.1,105.25,105.25,0,0,0,32.19-16.14c2.64-27.38-4.51-51.11-18.91-72.15ZM42.45,65.69C36.18,65.69,31,60,31,53s5-12.74,11.43-12.74S54,45.91,53.89,53,48.84,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.25,60,73.25,53s5-12.74,11.44-12.74S96.23,45.91,96.12,53,91.08,65.69,84.69,65.69Z"/>
+      </svg>
+    </a>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="https://www.paypal.com/sdk/js?client-id=BAAaSvh7KZein4G8C_AEJJhdNFRTTPTTudO-inRIIeYHkujHstULdArocEzSO9-w5Vfy5-hwHhRjs12pz0&currency=EUR&disable-funding=card"></script>
+
+  <script>
+    let isRegisterMode = false, currentUser = null, socket = null;
+    const GRID_SIZE = 0.0005;
+    let selectedColor = '#ff0000', players = {}, renderedPixels = {};
+
+    const map = L.map('map', { zoomControl: false, tap: false }).setView([48.8566, 2.3522], 13);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
+
+    document.getElementById('colorPicker').addEventListener('input', (e) => {
+      selectedColor = e.target.value;
+      document.getElementById('colorWrapper').style.backgroundColor = selectedColor;
+    });
+
+    function openShop() { document.getElementById('shopModal').style.display = 'flex'; }
+    function closeShop() { document.getElementById('shopModal').style.display = 'none'; }
+
+    function toggleAuthMode() {
+      isRegisterMode = !isRegisterMode;
+      document.getElementById('modalTitle').textContent = isRegisterMode ? 'Inscription' : 'Connexion';
+      document.getElementById('authBtn').textContent = isRegisterMode ? "S'inscrire" : 'Se connecter';
+      document.getElementById('switchText').textContent = isRegisterMode ? 'Déjà un compte ? Se connecter' : "Pas de compte ? S'inscrire";
+    }
+
+    async function submitAuth() {
+      const username = document.getElementById('usernameInput').value;
+      const password = document.getElementById('passwordInput').value;
+      const endpoint = isRegisterMode ? '/api/register' : '/api/login';
+
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+
+      const data = await res.json();
+      if (!res.ok) return alert(data.error);
+
+      currentUser = data.user;
+      document.getElementById('authModal').style.display = 'none';
+      initGame();
+    }
+
+    function initGame() {
+      socket = io();
+      socket.emit('joinGame', currentUser);
+
+      socket.on('init', (data) => {
+        updateStockUI();
+        Object.keys(data.pixels).forEach(k => drawPixel(k, data.pixels[k].bounds, data.pixels[k].color));
+        renderLeaderboard();
+      });
+
+      socket.on('updatePlayers', p => { players = p; renderLeaderboard(); });
+      socket.on('pixelPlaced', d => drawPixel(d.key, d.bounds, d.color));
+      socket.on('updateStock', d => { currentUser.stock = d.stock; updateStockUI(); });
+      socket.on('errorMsg', msg => alert(msg));
+    }
+
+    function payItem(item, price) {
+      document.getElementById('paypal-button-container').innerHTML = '';
+      paypal.Buttons({
+        fundingSource: paypal.FUNDING.PAYPAL,
+        style: { layout: 'vertical', color: 'gold', shape: 'rect' },
+        createOrder: (data, actions) => actions.order.create({ purchase_units: [{ amount: { value: price } }] }),
+        onApprove: (data, actions) => actions.order.capture().then(async () => {
+          const res = await fetch('/api/buy-item', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: currentUser.username, item })
+          });
+          const dataRes = await res.json();
+          if(dataRes.success) {
+            alert('Achat réussi !');
+            location.reload();
+          }
+        })
+      }).render('#paypal-button-container');
+    }
+
+    function banPlayer(targetUsername) {
+      if (confirm(`Bannir définitivement ${targetUsername} ?`)) {
+        socket.emit('adminAction', { action: 'ban', targetUsername });
+      }
+    }
+
+    function updateStockUI() {
+      document.getElementById('stockDisplay').textContent = (currentUser.isVip || currentUser.isFounder) ? '∞ VIP' : `Pixels: ${currentUser.stock}`;
+    }
+
+    function drawPixel(key, bounds, color) {
+      if (renderedPixels[key]) map.removeLayer(renderedPixels[key]);
+      renderedPixels[key] = L.rectangle(bounds, { color, fillColor: color, fillOpacity: 0.9, stroke: false }).addTo(map);
+    }
+
+    function renderLeaderboard() {
+      const list = Object.values(players).sort((a,b) => b.score - a.score);
+      const isMeFounder = currentUser && currentUser.isFounder;
+
+      document.getElementById('playerList').innerHTML = list.map(p => {
+        let nameClass = '';
+        let badge = '';
+
+        if (p.isFounder) {
+          nameClass = 'founder-user';
+          badge = '<span class="founder-badge">FONDATEUR</span>';
+        } else if (p.isVip) {
+          nameClass = 'vip-user';
+          badge = '<span class="vip-badge">VIP</span>';
+        } else if (p.hasNeon) {
+          nameClass = 'neon-user';
         }
 
-        const loginBtn = document.getElementById('login-btn');
-        const usernameInput = document.getElementById('username');
-        const loginScreen = document.getElementById('login-screen');
-        const gameScreen = document.getElementById('game-screen');
-        const displayPseudo = document.getElementById('display-pseudo');
-        const gridContainer = document.getElementById('grid-container');
+        const banButton = (isMeFounder && !p.isFounder) 
+          ? `<button class="btn-ban" onclick="banPlayer('${p.name}')">Ban</button>` 
+          : '';
 
-        loginBtn.addEventListener('click', () => {
-            const pseudo = usernameInput.value.trim();
-            if (pseudo) {
-                loginScreen.style.display = 'none';
-                gameScreen.style.display = 'flex';
-                displayPseudo.textContent = pseudo;
-            } else {
-                alert("Entre un pseudo !");
-            }
-        });
+        return `<div class="player-row ${nameClass}">
+          <span>${p.name} ${badge}</span>
+          <div style="display:flex; align-items:center;">
+            <span>${p.score}</span>
+            ${banButton}
+          </div>
+        </div>`;
+      }).join('');
+    }
 
-        // Création de la grille de 20x20 pixels visuels
-        const pixels = [];
-        for (let x = 0; x < 20; x++) {
-            pixels[x] = [];
-            for (let y = 0; y < 20; y++) {
-                const cell = document.createElement('div');
-                cell.classList.add('pixel');
-                cell.style.backgroundColor = '#FFFFFF';
-                
-                // Au clic, on envoie le pixel au serveur
-                cell.addEventListener('click', () => {
-                    socket.emit('place-pixel', { x, y, color: selectedColor });
-                });
-
-                gridContainer.appendChild(cell);
-                pixels[x][y] = cell;
-            }
-        }
-
-        // Réception de la grille complète au chargement
-        socket.on('init-grid', (gridData) => {
-            for (let x = 0; x < 20; x++) {
-                for (let y = 0; y < 20; y++) {
-                    pixels[x][y].style.backgroundColor = gridData[x][y];
-                }
-            }
-        });
-
-        // Mise à jour en direct d'un pixel par n'importe quel joueur
-        socket.on('update-pixel', ({ x, y, color }) => {
-            pixels[x][y].style.backgroundColor = color;
-        });
-    </script>
+    map.on('click', (e) => {
+      if (!socket) return;
+      const lat = Math.floor(e.latlng.lat / GRID_SIZE) * GRID_SIZE;
+      const lng = Math.floor(e.latlng.lng / GRID_SIZE) * GRID_SIZE;
+      socket.emit('placePixel', {
+        key: `${lat.toFixed(5)},${lng.toFixed(5)}`,
+        bounds: [[lat, lng], [lat + GRID_SIZE, lng + GRID_SIZE]],
+        color: selectedColor
+      });
+    });
+  </script>
 </body>
 </html>
