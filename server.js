@@ -6,22 +6,29 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-// Servir les fichiers statiques (HTML, CSS, JS du client)
+// Grille de pixels (par exemple 20x20 initialisée en blanc #FFFFFF)
+const GRID_SIZE = 20;
+let pixelGrid = Array(GRID_SIZE).fill(null).map(() => Array(GRID_SIZE).fill('#FFFFFF'));
+
 app.use(express.static(__dirname));
 
-// Route principale
 app.get('/', (req, res) => {
   res.sendFile(__dirname + '/index.html');
 });
 
-// Gestion des connexions en temps réel
 io.on('connection', (socket) => {
   console.log('Un utilisateur s\'est connecté :', socket.id);
 
-  // Exemple : réception d'un pseudo lors de la connexion
-  socket.on('user-login', (pseudo) => {
-    console.log(`Utilisateur enregistré : ${pseudo} (${socket.id})`);
-    // Tu pourras diffuser l'information aux autres joueurs ici
+  // Envoi de la grille actuelle au nouveau joueur
+  socket.emit('init-grid', pixelGrid);
+
+  // Quand un joueur clique sur un pixel
+  socket.on('place-pixel', ({ x, y, color }) => {
+    if (x >= 0 && x < GRID_SIZE && y >= 0 && y < GRID_SIZE) {
+      pixelGrid[x][y] = color;
+      // Diffuse le changement à TOUS les joueurs connectés en temps réel
+      io.emit('update-pixel', { x, y, color });
+    }
   });
 
   socket.on('disconnect', () => {
@@ -29,7 +36,6 @@ io.on('connection', (socket) => {
   });
 });
 
-// Port dynamique pour Render ou 3000 par défaut en local
 const PORT = process.env.PORT || 10000;
 server.listen(PORT, () => {
   console.log(`Serveur prêt sur le port ${PORT}`);
