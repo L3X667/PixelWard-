@@ -5,113 +5,161 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pixel War</title>
     <style>
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
             background-color: #0f172a;
             color: #f8fafc;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             display: flex;
-            justify-content: center;
+            flex-direction: column;
             align-items: center;
-            height: 100vh;
+            justify-content: center;
+            min-height: 100vh;
         }
         .card {
             background-color: #1e293b;
-            padding: 40px;
+            padding: 30px;
             border-radius: 12px;
             box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
             text-align: center;
-            width: 100%;
-            max-width: 400px;
         }
-        h1 {
-            margin-bottom: 20px;
-            font-size: 24px;
-            color: #38bdf8;
-        }
-        input {
-            width: 100%;
+        input, button {
             padding: 12px;
-            margin-bottom: 15px;
-            background-color: #0f172a;
-            border: 1px solid #334155;
+            margin: 8px 0;
+            width: 100%;
             border-radius: 6px;
+            border: 1px solid #334155;
+            background-color: #0f172a;
             color: white;
             font-size: 16px;
         }
-        input:focus {
-            outline: none;
-            border-color: #38bdf8;
-        }
         button {
-            width: 100%;
-            padding: 12px;
             background-color: #38bdf8;
             color: #0f172a;
-            border: none;
-            border-radius: 6px;
-            font-size: 16px;
             font-weight: bold;
             cursor: pointer;
-            transition: background 0.2s;
         }
-        button:hover {
-            background-color: #0ea5e9;
-        }
+        button:hover { background-color: #0ea5e9; }
+        
         #game-screen {
             display: none;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        #grid-container {
+            display: grid;
+            grid-template-columns: repeat(20, 20px);
+            grid-template-rows: repeat(20, 20px);
+            gap: 1px;
+            background-color: #334155;
+            padding: 2px;
+            border-radius: 4px;
+            margin-top: 15px;
+        }
+        .pixel {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+        .palette {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+            justify-content: center;
+        }
+        .color-btn {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            border: 2px solid white;
+            cursor: pointer;
         }
     </style>
 </head>
 <body>
 
-    <div class="card">
-        <!-- Écran de connexion -->
-        <div id="login-screen">
-            <h1>Pixel War ⚔️</h1>
-            <input type="text" id="username" placeholder="Entre ton pseudo..." autocomplete="off">
-            <button id="login-btn">Se connecter</button>
-        </div>
+    <!-- ÉCRAN DE CONNEXION -->
+    <div class="card" id="login-screen">
+        <h1>Pixel War ⚔️</h1>
+        <input type="text" id="username" placeholder="Ton pseudo..." autocomplete="off">
+        <button id="login-btn">Entrer dans la guerre</button>
+    </div>
 
-        <!-- Écran de jeu (masqué par défaut) -->
-        <div id="game-screen">
-            <h1>Bienvenue, <span id="display-pseudo"></span> !</h1>
-            <p>Connecté avec succès au serveur.</p>
-            <!-- C'est ici que tu mettras ta grille de pixels par la suite -->
+    <!-- ÉCRAN DE JEU (Grille) -->
+    <div id="game-screen">
+        <h1>Pixel War - Joueur : <span id="display-pseudo"></span></h1>
+        
+        <div id="grid-container"></div>
+
+        <div class="palette">
+            <div class="color-btn" style="background-color: #EF4444;" onclick="setColor('#EF4444')"></div>
+            <div class="color-btn" style="background-color: #3B82F6;" onclick="setColor('#3B82F6')"></div>
+            <div class="color-btn" style="background-color: #10B981;" onclick="setColor('#10B981')"></div>
+            <div class="color-btn" style="background-color: #FBBF24;" onclick="setColor('#FBBF24')"></div>
+            <div class="color-btn" style="background-color: #FFFFFF;" onclick="setColor('#FFFFFF')"></div>
+            <div class="color-btn" style="background-color: #000000;" onclick="setColor('#000000')"></div>
         </div>
     </div>
 
-    <!-- Script Socket.io fourni automatiquement par le serveur -->
     <script src="/socket.io/socket.io.js"></script>
-
     <script>
-        // Connexion automatique au serveur (marche en local et sur Render)
         const socket = io();
+        let selectedColor = '#EF4444'; // Rouge par défaut
+
+        function setColor(color) {
+            selectedColor = color;
+        }
 
         const loginBtn = document.getElementById('login-btn');
         const usernameInput = document.getElementById('username');
         const loginScreen = document.getElementById('login-screen');
         const gameScreen = document.getElementById('game-screen');
         const displayPseudo = document.getElementById('display-pseudo');
+        const gridContainer = document.getElementById('grid-container');
 
         loginBtn.addEventListener('click', () => {
             const pseudo = usernameInput.value.trim();
-
-            if (pseudo !== "") {
-                // Envoi du pseudo au serveur
-                socket.emit('user-login', pseudo);
-
-                // Passage à l'écran de jeu
+            if (pseudo) {
                 loginScreen.style.display = 'none';
-                gameScreen.style.display = 'block';
+                gameScreen.style.display = 'flex';
                 displayPseudo.textContent = pseudo;
             } else {
-                alert("Entre un pseudo valide !");
+                alert("Entre un pseudo !");
             }
+        });
+
+        // Création de la grille de 20x20 pixels visuels
+        const pixels = [];
+        for (let x = 0; x < 20; x++) {
+            pixels[x] = [];
+            for (let y = 0; y < 20; y++) {
+                const cell = document.createElement('div');
+                cell.classList.add('pixel');
+                cell.style.backgroundColor = '#FFFFFF';
+                
+                // Au clic, on envoie le pixel au serveur
+                cell.addEventListener('click', () => {
+                    socket.emit('place-pixel', { x, y, color: selectedColor });
+                });
+
+                gridContainer.appendChild(cell);
+                pixels[x][y] = cell;
+            }
+        }
+
+        // Réception de la grille complète au chargement
+        socket.on('init-grid', (gridData) => {
+            for (let x = 0; x < 20; x++) {
+                for (let y = 0; y < 20; y++) {
+                    pixels[x][y].style.backgroundColor = gridData[x][y];
+                }
+            }
+        });
+
+        // Mise à jour en direct d'un pixel par n'importe quel joueur
+        socket.on('update-pixel', ({ x, y, color }) => {
+            pixels[x][y].style.backgroundColor = color;
         });
     </script>
 </body>
