@@ -1,31 +1,31 @@
-const express = require('express');
-const http = require('http');
-const { Server } = require('socket.io');
+// Connexion automatique au serveur (fonctionne en local et sur Render)
+const socket = io();
 
-const app = express();
-const server = http.createServer(app);
-const io = new Server(server);
+// Exemple de gestion du bouton de connexion
+document.addEventListener('DOMContentLoaded', () => {
+  const loginButton = document.getElementById('login-btn'); // Remplace par l'ID réel de ton bouton
+  const usernameInput = document.getElementById('username'); // Remplace par l'ID de ton champ texte pseudo
 
-// Permet de servir les fichiers statiques (ton index.html, CSS, etc.)
-app.use(express.static(__dirname));
+  if (loginButton) {
+    loginButton.addEventListener('click', () => {
+      const username = usernameInput ? usernameInput.value.trim() : '';
+      
+      if (username) {
+        console.log('Tentative de connexion avec le pseudo :', username);
+        
+        // Envoi d'un événement au serveur (par exemple 'user-login')
+        socket.emit('user-login', username);
+      } else {
+        alert('Veuillez entrer un pseudo !');
+      }
+    });
+  }
 
-// Route principale explicite pour charger index.html
-app.get('/', (req, res) => {
-  res.sendFile(__dirname + '/index.html');
-});
-
-// Gestion des connexions Socket.io (pour ton jeu Pixel War)
-io.on('connection', (socket) => {
-  console.log('Un utilisateur s\'est connecté :', socket.id);
-
-  // Tu peux rajouter tes événements de jeu ici (ex: pose de pixel)
-  socket.on('disconnect', () => {
-    console.log('Un utilisateur s\'est déconnecté :', socket.id);
+  // Écouter la réponse du serveur après la connexion
+  socket.on('login-success', (data) => {
+    console.log('Connexion réussie !', data);
+    // Cache l'écran de connexion et affiche le jeu, par exemple :
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('game-screen').style.display = 'block';
   });
-});
-
-// Utilisation du port dynamique de Render, ou 3000 par défaut en local
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-  console.log(`Serveur prêt sur le port ${PORT}`);
 });
