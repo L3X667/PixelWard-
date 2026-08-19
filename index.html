@@ -32,7 +32,9 @@
 
     .btn-ban { background: #ff4444; color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: bold; cursor: pointer; margin-left: 6px; }
 
-    .controls { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 1000; background: rgba(15, 17, 23, 0.92); padding: 8px 16px; border-radius: 50px; display: flex; align-items: center; gap: 12px; border: 1px solid rgba(255,255,255,0.15); backdrop-filter: blur(8px); box-shadow: 0 4px 20px rgba(0,0,0,0.5); width: auto; max-width: calc(100% - 32px); }
+    /* Barre du bas remontée pour les téléphones */
+    .controls { position: absolute; bottom: 35px; left: 50%; transform: translateX(-50%); z-index: 1000; background: rgba(15, 17, 23, 0.92); padding: 8px 16px; border-radius: 50px; display: flex; align-items: center; gap: 10px; border: 1px solid rgba(255,255,255,0.15); backdrop-filter: blur(8px); box-shadow: 0 4px 20px rgba(0,0,0,0.5); width: auto; max-width: 95%; flex-wrap: wrap; justify-content: center; }
+    
     .color-picker-wrapper { position: relative; width: 38px; height: 38px; border-radius: 50%; overflow: hidden; border: 2px solid #ffffff; cursor: pointer; flex-shrink: 0; }
     .color-picker-wrapper input[type="color"] { position: absolute; top: -10px; left: -10px; width: 60px; height: 60px; border: none; cursor: pointer; background: none; }
     
