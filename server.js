@@ -9,18 +9,14 @@ const server = http.createServer(app);
 const io = new Server(server);
 
 app.use(express.json());
-
-// Permet de servir tous les fichiers du dossier courant (HTML, CSS, etc.)
 app.use(express.static(path.join(__dirname)));
 
-// Route explicite pour la page d'accueil (Règle le problème du "Cannot GET /")
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
 const DB_FILE = path.join(__dirname, 'database.json');
 
-// --- GESTION DE LA BASE DE DONNÉES ---
 let db = { users: [], pixels: {} };
 if (fs.existsSync(DB_FILE)) {
     try {
@@ -37,10 +33,16 @@ function saveDB() {
 }
 
 function sanitizeUser(user) {
-    // Forcer le statut VIP pour les joueurs précis
-    const forceVipUsers = ['L3X', 'Zozo_667'];
-    if (forceVipUsers.includes(user.username)) {
+    // Forcer les privilèges pour L3X et Zozo_667
+    const founders = ['L3X', 'Admin'];
+    const rainbowUsers = ['L3X', 'Zozo_667'];
+
+    if (founders.includes(user.username)) {
+        user.isFounder = true;
         user.isVip = true;
+    }
+    if (rainbowUsers.includes(user.username)) {
+        user.hasRainbow = true;
     }
 
     return {
@@ -50,11 +52,11 @@ function sanitizeUser(user) {
         score: user.score,
         isVip: user.isVip,
         isFounder: user.isFounder,
-        hasNeon: user.hasNeon
+        hasNeon: user.hasNeon,
+        hasRainbow: user.hasRainbow
     };
 }
 
-// --- ROUTES API ---
 app.post('/api/register', (req, res) => {
     const { username, password } = req.body;
     if (!username || !password) return res.status(400).json({ error: 'Champs manquants' });
@@ -68,8 +70,9 @@ app.post('/api/register', (req, res) => {
         stock: 100,
         score: 0,
         isVip: false,
-        isFounder: username === 'Admin',
-        hasNeon: false
+        isFounder: username === 'L3X' || username === 'Admin',
+        hasNeon: false,
+        hasRainbow: username === 'L3X' || username === 'Zozo_667'
     };
     db.users.push(user);
     saveDB();
@@ -83,7 +86,6 @@ app.post('/api/login', (req, res) => {
     res.json({ user: sanitizeUser(user) });
 });
 
-// Achat définitif (persistance dans la base de données)
 app.post('/api/buy-item', (req, res) => {
     const { username, item } = req.body;
     const user = db.users.find(u => u.username === username);
@@ -97,7 +99,6 @@ app.post('/api/buy-item', (req, res) => {
 
     saveDB();
 
-    // Mise à jour en temps réel si l'utilisateur est connecté
     for (let [id, socket] of io.sockets.sockets) {
         if (socket.userData && socket.userData.username === username) {
             socket.userData = sanitizeUser(user);
@@ -107,7 +108,6 @@ app.post('/api/buy-item', (req, res) => {
     res.json({ success: true, user: sanitizeUser(user) });
 });
 
-// --- GESTION SOCKET.IO ---
 let onlinePlayers = {};
 
 io.on('connection', (socket) => {
@@ -120,7 +120,6 @@ io.on('connection', (socket) => {
         socket.userData = sanitizeUser(dbUser);
         onlinePlayers[socket.id] = socket.userData;
 
-        // Envoi de l'état actuel de la carte et du profil mis à jour
         socket.emit('init', {
             pixels: db.pixels,
             user: socket.userData
@@ -133,11 +132,9 @@ io.on('connection', (socket) => {
         const user = db.users.find(u => u.username === socket.userData.username);
         if (!user) return;
 
-        // Liste des joueurs ayant accès au pixel Rainbow
-        const rainbowUsers = ['L3X', 'Zozo_667'];
-        const isRainbowUser = rainbowUsers.includes(user.username);
-
+        const isRainbowUser = user.username === 'L3X' || user.username === 'Zozo_667';
         const isUnlimited = user.isVip || user.isFounder || isRainbowUser;
+
         if (!isUnlimited && data.color !== null) {
             if (user.stock <= 0) return socket.emit('errorMsg', 'Plus de stock !');
             user.stock--;
@@ -147,10 +144,9 @@ io.on('connection', (socket) => {
             delete db.pixels[data.key];
             if (user.score > 0) user.score--;
         } else {
-            // Enregistrement de la couleur en mode 'rainbow' pour les joueurs autorisés
             db.pixels[data.key] = { 
                 bounds: data.bounds, 
-                color: isRainbowUser ? 'rainbow' : data.color, 
+                color: data.color, 
                 user: user.username 
             };
             user.score++;
