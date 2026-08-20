@@ -30,8 +30,6 @@
 
     .neon-user { color: #00ffff !important; text-shadow: 0 0 8px #00ffff; font-weight: bold; }
 
-    .btn-ban { background: #ff4444; color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: bold; cursor: pointer; margin-left: 6px; }
-
     /* Barre PC : Bas centre */
     .controls { position: absolute; bottom: 25px; left: 50%; transform: translateX(-50%); z-index: 1000; background: rgba(15, 17, 23, 0.92); padding: 8px 16px; border-radius: 50px; display: flex; align-items: center; gap: 10px; border: 1px solid rgba(255,255,255,0.15); backdrop-filter: blur(8px); box-shadow: 0 4px 20px rgba(0,0,0,0.5); width: auto; }
     
@@ -168,13 +166,11 @@
       socket.emit('joinGame', currentUser);
 
       socket.on('init', (data) => {
-        // Met à jour l'utilisateur (récupère le statut VIP persistant du serveur)
         if (data.user) {
           currentUser = data.user;
         }
         updateStockUI();
         
-        // Rendu incrémental (garde tout ce qui existe sans tout effacer)
         Object.keys(data.pixels).forEach(k => {
           if (data.pixels[k].color && !renderedPixels[k]) {
             drawPixel(k, data.pixels[k].bounds, data.pixels[k].color);
@@ -217,7 +213,15 @@
 
     function drawPixel(key, bounds, color) {
       if (renderedPixels[key]) map.removeLayer(renderedPixels[key]);
-      renderedPixels[key] = L.rectangle(bounds, { color, fillColor: color, fillOpacity: 0.9, stroke: false }).addTo(map);
+
+      let fillColor = color;
+      // Gestion de la couleur Rainbow pour L3X et Zozo_667
+      if (color === 'rainbow') {
+        const rainbowColors = ['#ff0000', '#ff7f00', '#ffff00', '#00ff00', '#00ffff', '#0000ff', '#8b00ff'];
+        fillColor = rainbowColors[Math.floor(Math.random() * rainbowColors.length)];
+      }
+
+      renderedPixels[key] = L.rectangle(bounds, { color: fillColor, fillColor: fillColor, fillOpacity: 0.9, stroke: false }).addTo(map);
     }
 
     function removePixel(key) {
