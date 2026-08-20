@@ -1,129 +1,157 @@
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
+const fs = require('fs');
+const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
 app.use(express.json());
-app.use(express.static(__dirname));
+// Servir les fichiers statiques (index.html, CSS, JS client)
+app.use(express.static(path.join(__dirname, 'public')));
 
-let users = {}; 
-let pixels = {}; 
+const DB_FILE = path.join(__dirname, 'database.json');
 
+// --- GESTION DE LA BASE DE DONNÉES ---
+let db = { users: [], pixels: {} };
+if (fs.existsSync(DB_FILE)) {
+    try {
+        db = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
+    } catch (e) {
+        console.error('Erreur lecture DB, réinitialisation', e);
+    }
+} else {
+    saveDB();
+}
+
+function saveDB() {
+    fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
+}
+
+function sanitizeUser(user) {
+    return {
+        username: user.username,
+        name: user.username,
+        stock: user.stock,
+        score: user.score,
+        isVip: user.isVip,
+        isFounder: user.isFounder,
+        hasNeon: user.hasNeon
+    };
+}
+
+// --- ROUTES API ---
 app.post('/api/register', (req, res) => {
-  const { username, password } = req.body;
-  if (!username || !password) {
-    return res.status(400).json({ error: 'Remplis tous les champs.' });
-  }
-  if (users[username]) {
-    return res.status(400).json({ error: 'Ce pseudo est déjà pris.' });
-  }
+    const { username, password } = req.body;
+    if (!username || !password) return res.status(400).json({ error: 'Champs manquants' });
+    
+    let user = db.users.find(u => u.username === username);
+    if (user) return res.status(400).json({ error: 'Ce pseudo existe déjà' });
 
-  users[username] = {
-    name: username,
-    password: password,
-    stock: 100, 
-    isVip: false,
-    isFounder: username.toLowerCase() === 'l3x', 
-    hasNeon: false,
-    score: 0
-  };
-
-  res.json({ success: true, user: users[username] });
+    user = {
+        username,
+        password,
+        stock: 100,
+        score: 0,
+        isVip: false,
+        isFounder: username === 'Admin',
+        hasNeon: false
+    };
+    db.users.push(user);
+    saveDB();
+    res.json({ user: sanitizeUser(user) });
 });
 
 app.post('/api/login', (req, res) => {
-  const { username, password } = req.body;
-  if (!username || !password) {
-    return res.status(400).json({ error: 'Remplis tous les champs.' });
-  }
-  const user = users[username];
-  if (!user || user.password !== password) {
-    return res.status(400).json({ error: 'Pseudo ou mot de passe incorrect.' });
-  }
-
-  res.json({ success: true, user });
+    const { username, password } = req.body;
+    const user = db.users.find(u => u.username === username && u.password === password);
+    if (!user) return res.status(400).json({ error: 'Identifiants incorrects' });
+    res.json({ user: sanitizeUser(user) });
 });
 
+// Achat définitif (persistance dans la base de données)
 app.post('/api/buy-item', (req, res) => {
-  const { username, item } = req.body;
-  const user = users[username];
-  if (!user) return res.status(400).json({ error: 'Utilisateur introuvable.' });
+    const { username, item } = req.body;
+    const user = db.users.find(u => u.username === username);
+    if (!user) return res.status(400).json({ error: 'Utilisateur introuvable' });
 
-  if (item === 'vip') {
-    user.isVip = true;
-  } else if (item === 'pixels50') {
-    user.stock += 50;
-  } else if (item === 'neon') {
-    user.hasNeon = true;
-  } else if (item === 'brush') {
-    user.hasBrush = true;
-  } else if (item === 'shield') {
-    user.hasShield = true;
-  }
+    if (item === 'vip') {
+        user.isVip = true; 
+    } else if (item === 'pixels50') {
+        user.stock += 50;
+    }
 
-  res.json({ success: true, user });
+    saveDB();
+
+    // Mise à jour en temps réel si l'utilisateur est connecté
+    for (let [id, socket] of io.sockets.sockets) {
+        if (socket.userData && socket.userData.username === username) {
+            socket.userData = sanitizeUser(user);
+            socket.emit('updateStock', { stock: socket.userData.stock });
+        }
+    }
+    res.json({ success: true, user: sanitizeUser(user) });
 });
+
+// --- GESTION SOCKET.IO ---
+let onlinePlayers = {};
 
 io.on('connection', (socket) => {
-  let currentUser = null;
-  let rechargeInterval = null;
+    console.log('Utilisateur connecté');
 
-  socket.on('joinGame', (userData) => {
-    currentUser = users[userData.name] || userData;
-    users[currentUser.name] = currentUser;
+    socket.on('joinGame', (userData) => {
+        let dbUser = db.users.find(u => u.username === userData.username);
+        if (!dbUser) dbUser = userData;
 
-    socket.emit('init', { pixels, players: users });
-    io.emit('updatePlayers', users);
+        socket.userData = sanitizeUser(dbUser);
+        onlinePlayers[socket.id] = socket.userData;
 
-    // Recharge automatique : +1 pixel toutes les 5 secondes (pour les non-VIP / non-Fondateurs)
-    rechargeInterval = setInterval(() => {
-      if (currentUser && !currentUser.isVip && !currentUser.isFounder) {
-        currentUser.stock += 1;
-        socket.emit('updateStock', { stock: currentUser.stock });
-      }
-    }, 5000); // 5000 millisecondes = 5 secondes
-  });
+        // Envoi de l'état actuel de la carte et du profil mis à jour
+        socket.emit('init', {
+            pixels: db.pixels,
+            user: socket.userData
+        });
+        io.emit('updatePlayers', onlinePlayers);
+    });
 
-  socket.on('placePixel', (data) => {
-    if (!currentUser) return;
+    socket.on('placePixel', (data) => {
+        if (!socket.userData) return;
+        const user = db.users.find(u => u.username === socket.userData.username);
+        if (!user) return;
 
-    if (!currentUser.isVip && !currentUser.isFounder) {
-      if (currentUser.stock <= 0) {
-        socket.emit('errorMsg', "Tu n'as plus de pixels en stock ! Attends un peu.");
-        return;
-      }
-      currentUser.stock -= 1;
-      socket.emit('updateStock', { stock: currentUser.stock });
-    }
+        const isUnlimited = user.isVip || user.isFounder;
+        if (!isUnlimited && data.color !== null) {
+            if (user.stock <= 0) return socket.emit('errorMsg', 'Plus de stock !');
+            user.stock--;
+        }
 
-    pixels[data.key] = { bounds: data.bounds, color: data.color, user: currentUser.name };
-    currentUser.score += 1;
+        if (data.color === null) {
+            delete db.pixels[data.key];
+            if (user.score > 0) user.score--;
+        } else {
+            db.pixels[data.key] = { bounds: data.bounds, color: data.color, user: user.username };
+            user.score++;
+        }
 
-    io.emit('pixelPlaced', { key: data.key, bounds: data.bounds, color: data.color });
-    io.emit('updatePlayers', users);
-  });
+        saveDB();
+        socket.userData.stock = user.stock;
+        socket.userData.score = user.score;
+        onlinePlayers[socket.id] = socket.userData;
 
-  socket.on('adminAction', (data) => {
-    if (currentUser && currentUser.isFounder && data.action === 'ban') {
-      delete users[data.targetUsername];
-      io.emit('updatePlayers', users);
-    }
-  });
+        io.emit('pixelPlaced', { key: data.key, bounds: data.bounds, color: data.color });
+        io.emit('updatePlayers', onlinePlayers);
+        socket.emit('updateStock', { stock: user.stock });
+    });
 
-  socket.on('disconnect', () => {
-    if (rechargeInterval) {
-      clearInterval(rechargeInterval); // Stoppe le minuteur si le joueur quitte la page
-    }
-    if (currentUser) {
-      io.emit('updatePlayers', users);
-    }
-  });
+    socket.on('disconnect', () => {
+        delete onlinePlayers[socket.id];
+        io.emit('updatePlayers', onlinePlayers);
+    });
 });
 
-const PORT = process.env.PORT || 10000;
+const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-  console.log(`Serveur prêt sur le port ${PORT}`);
+    console.log(`Serveur opérationnel sur le port ${PORT}`);
 });
