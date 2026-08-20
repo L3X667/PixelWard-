@@ -9,7 +9,7 @@ const server = http.createServer(app);
 const io = new Server(server);
 
 app.use(express.json());
-// Servir les fichiers statiques (index.html, CSS, JS client)
+// Servir les fichiers statiques (index.html, etc.)
 app.use(express.static(path.join(__dirname, 'public')));
 
 const DB_FILE = path.join(__dirname, 'database.json');
@@ -31,6 +31,12 @@ function saveDB() {
 }
 
 function sanitizeUser(user) {
+    // Optionnel : Forcer le VIP ou des avantages pour des pseudos précis si besoin
+    const forceVipUsers = ['L3X', 'Zozo_667'];
+    if (forceVipUsers.includes(user.username)) {
+        user.isVip = true;
+    }
+
     return {
         username: user.username,
         name: user.username,
@@ -121,7 +127,11 @@ io.on('connection', (socket) => {
         const user = db.users.find(u => u.username === socket.userData.username);
         if (!user) return;
 
-        const isUnlimited = user.isVip || user.isFounder;
+        // Liste des joueurs ayant accès au pixel Rainbow
+        const rainbowUsers = ['L3X', 'Zozo_667'];
+        const isRainbowUser = rainbowUsers.includes(user.username);
+
+        const isUnlimited = user.isVip || user.isFounder || isRainbowUser;
         if (!isUnlimited && data.color !== null) {
             if (user.stock <= 0) return socket.emit('errorMsg', 'Plus de stock !');
             user.stock--;
@@ -131,7 +141,12 @@ io.on('connection', (socket) => {
             delete db.pixels[data.key];
             if (user.score > 0) user.score--;
         } else {
-            db.pixels[data.key] = { bounds: data.bounds, color: data.color, user: user.username };
+            // Si c'est un joueur autorisé, on enregistre la couleur en mode 'rainbow'
+            db.pixels[data.key] = { 
+                bounds: data.bounds, 
+                color: isRainbowUser ? 'rainbow' : data.color, 
+                user: user.username 
+            };
             user.score++;
         }
 
@@ -140,7 +155,7 @@ io.on('connection', (socket) => {
         socket.userData.score = user.score;
         onlinePlayers[socket.id] = socket.userData;
 
-        io.emit('pixelPlaced', { key: data.key, bounds: data.bounds, color: data.color });
+        io.emit('pixelPlaced', { key: data.key, bounds: data.bounds, color: db.pixels[data.key]?.color || data.color });
         io.emit('updatePlayers', onlinePlayers);
         socket.emit('updateStock', { stock: user.stock });
     });
