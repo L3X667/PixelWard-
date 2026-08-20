@@ -9,8 +9,14 @@ const server = http.createServer(app);
 const io = new Server(server);
 
 app.use(express.json());
-// Servir les fichiers statiques (index.html, etc.)
-app.use(express.static(path.join(__dirname, 'public')));
+
+// Permet de servir tous les fichiers du dossier courant (HTML, CSS, etc.)
+app.use(express.static(path.join(__dirname)));
+
+// Route explicite pour la page d'accueil (Règle le problème du "Cannot GET /")
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
+});
 
 const DB_FILE = path.join(__dirname, 'database.json');
 
@@ -31,7 +37,7 @@ function saveDB() {
 }
 
 function sanitizeUser(user) {
-    // Optionnel : Forcer le VIP ou des avantages pour des pseudos précis si besoin
+    // Forcer le statut VIP pour les joueurs précis
     const forceVipUsers = ['L3X', 'Zozo_667'];
     if (forceVipUsers.includes(user.username)) {
         user.isVip = true;
@@ -141,7 +147,7 @@ io.on('connection', (socket) => {
             delete db.pixels[data.key];
             if (user.score > 0) user.score--;
         } else {
-            // Si c'est un joueur autorisé, on enregistre la couleur en mode 'rainbow'
+            // Enregistrement de la couleur en mode 'rainbow' pour les joueurs autorisés
             db.pixels[data.key] = { 
                 bounds: data.bounds, 
                 color: isRainbowUser ? 'rainbow' : data.color, 
